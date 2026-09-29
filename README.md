@@ -9,9 +9,11 @@ comparing qubit counts, circuit depth and feature maps with classical classifier
 1. **Pre-processing**: impossible zeros (glucose, blood pressure, skin thickness, insulin, BMI) → training-set median;
    standardise; scale to [0, π]. **8 qubits** use all 8 attributes; **4 qubits** use the attributes selected in the
    study (**Glucose, Age, Insulin, BMI**), or an ANOVA F-test selection with `--attributes select`.
-2. **Feature map**: ZZ feature map (2 repetitions, linear entanglement), with Z and Pauli (Z, YY) maps for comparison.
-3. **Ansatz**: RealAmplitudes with *L* layers (default 6), linear entanglement.
-4. **Training**: COBYLA on cross-entropy, exact statevector simulation (qiskit-machine-learning `VQC`).
+2. **Feature map**: ZZ feature map (2 repetitions, linear entanglement); inputs scaled by a bandwidth factor chosen
+   on a validation split (the full [0, π] range leaves the VQC near chance).
+3. **Ansatz**: RealAmplitudes with *L* ∈ {2, 4, 6} layers, linear entanglement; parity readout.
+4. **Training**: Adam on binary cross-entropy through an exact PyTorch statevector simulation (`vqc_torch.py`,
+   verified against Qiskit to 1e-9); COBYLA via qiskit-machine-learning is available with `--optimizer cobyla`.
 5. **Evaluation**: stratified 80 / 20 split; accuracy, precision, recall, F1, ROC-AUC vs. logistic regression,
    RBF-SVM and random forest.
 
@@ -45,7 +47,9 @@ published open access under the [CC BY 4.0](https://creativecommons.org/licenses
 Quantum-Diabetes-Prediction/
 ├── Code/
 │   ├── data.py            # loading, imputation, feature selection, angle scaling
-│   ├── vqc.py             # feature maps + RealAmplitudes VQC
+│   ├── vqc.py             # qiskit-machine-learning VQC (COBYLA)
+│   ├── vqc_torch.py       # same circuit, differentiable PyTorch simulation (Adam) + Qiskit export
+│   ├── test_vqc_torch.py  # equivalence test against Qiskit
 │   ├── train.py           # quantum and classical experiments -> Results/results.json
 │   ├── plot_results.py    # comparison, training curves, circuit diagrams
 │   └── requirements.txt
@@ -61,8 +65,9 @@ Quantum-Diabetes-Prediction/
 ```bash
 cd Code
 pip install -r requirements.txt
-python train.py                                        # 4 and 8 qubits, ZZ map, 6 layers
-python train.py --qubits 8 --layers 1 2 4 6 --feature-maps zz z pauli
+python -m pytest test_vqc_torch.py
+python train.py                                        # 4 and 8 qubits, 2/4/6 layers, Adam
+python train.py --optimizer cobyla --maxiter 300       # qiskit-machine-learning VQC
 python plot_results.py
 ```
 
@@ -72,7 +77,10 @@ python plot_results.py
 Reported: a VQC with six layers and a ZZ feature map reached **0.85 accuracy with 8 qubits** and **0.80 with 4 qubits**.
 
 ## Results
-See [Results/README.md](Results/README.md).
+![Accuracy comparison](Figures/accuracy_comparison.png)
+
+Reproduced here: VQC test accuracy **0.70–0.75**, on par with classical models (0.68–0.75). Full tables and a comparison
+with the published numbers are in [Results/README.md](Results/README.md).
 
 ## Author
 **Wajiha Rahim Khan**  
